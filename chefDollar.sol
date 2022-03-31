@@ -1,8 +1,8 @@
-    /**
-    *Submitted for verification at cronoscan.com on 2022-02-25
-    */
+
     // SPDX-License-Identifier: MIT
+
     pragma solidity 0.6.12;
+
     /**
     * @dev Interface of the ERC20 standard as defined in the EIP.
     */
@@ -89,6 +89,7 @@
             uint256 value
         );
     }
+
     /**
     * @dev Wrappers over Solidity's arithmetic operations with added overflow
     * checks.
@@ -331,6 +332,7 @@
             return a % b;
         }
     }
+
     /**
     * @dev Collection of functions related to the address type
     */
@@ -580,6 +582,7 @@
             }
         }
     }
+
     /**
     * @title SafeERC20
     * @dev Wrappers around ERC20 operations that throw on failure (when the token
@@ -766,66 +769,84 @@
 
     interface IRewardPool {
         function deposit(uint256 _pid, uint256 _amount) external;
+
         function withdraw(uint256 _pid, uint256 _amount) external;
+
         function withdrawAll(uint256 _pid) external;
+
         function harvestAllRewards() external;
+
         function pendingReward(uint256 _pid, address _user)
             external
             view
             returns (uint256);
 
         function pendingAllRewards(address _user) external view returns (uint256);
+
         function totalAllocPoint() external view returns (uint256);
+
         function poolLength() external view returns (uint256);
+
         function getPoolInfo(uint256 _pid)
             external
             view
             returns (address _lp, uint256 _allocPoint);
 
         function getRewardPerSecond() external view returns (uint256);
+
         function updateRewardRate(uint256 _newRate) external;
     }
 
-    // Note that this pool has no minter key of PUSD (rewards).
-    // Instead, the governance will call PUSD distributeReward method and send reward to this pool at the beginning.
-    contract PusdRewardPool is IRewardPool, ReentrancyGuard {
+    // Note that this pool has no minter key of PES (rewards).
+    // Instead, the governance will call PES distributeReward method and send reward to this pool at the beginning.
+    contract PESRewardPool is IRewardPool, ReentrancyGuard {
         using SafeMath for uint256;
         using SafeERC20 for IERC20;
+
         // governance
         address public operator;
+
         // Info of each user.
         struct UserInfo {
             uint256 amount; // How many LP tokens the user has provided.
             uint256 rewardDebt; // Reward debt. See explanation below.
         }
+
         // Info of each pool.
         struct PoolInfo {
             IERC20 token; // Address of LP token contract.
-            uint256 allocPoint; // How many allocation points assigned to this pool. PUSDs to distribute in the pool.
-            uint256 lastRewardTime; // Last time that PUSDs distribution occurred.
-            uint256 accPusdPerShare; // Accumulated PUSDs per share, times 1e18. See below.
+            uint256 allocPoint; // How many allocation points assigned to this pool. PESs to distribute in the pool.
+            uint256 lastRewardTime; // Last time that PESs distribution occurred.
+            uint256 accPESPerShare; // Accumulated PESs per share, times 1e18. See below.
             bool isStarted; // if lastRewardTime has passed
         }
-        IERC20 public pusd;
+
+        IERC20 public pes;
+
         // Info of each pool.
         PoolInfo[] public poolInfo;
+
         // Info of each user that stakes LP tokens.
         mapping(uint256 => mapping(address => UserInfo)) public userInfo;
+
         // Total allocation points. Must be the sum of all allocation points in all pools.
         uint256 public totalAllocPoint_;
-        // The time when PUSD mining starts.
+
+        // The time when PES mining starts.
         uint256 public poolStartTime;
+
         uint256[] public epochTotalRewards = [
-            14000 ether,
-            12000 ether,
-            8000 ether,
-            6000 ether
+            1500 ether,
+            250 ether,
+            200 ether,
+            50 ether
         ];
+
         // Time when each epoch ends.
         uint256[4] public epochEndTimes;
 
         // Reward per second for each of 4 weeks (last item is equal to 0 - for sanity).
-        uint256[5] public epochPusdPerSecond;
+        uint256[5] public epochPESPerSecond;
 
         event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
         event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
@@ -835,9 +856,10 @@
             uint256 amount
         );
         event RewardPaid(address indexed user, uint256 amount);
-        constructor(address _pusd, uint256 _poolStartTime) public {
+
+        constructor(address _pes, uint256 _poolStartTime) public {
             require(block.timestamp < _poolStartTime, "late");
-            if (_pusd != address(0)) pusd = IERC20(_pusd);
+            if (_pes != address(0)) pes = IERC20(_pes);
 
             poolStartTime = _poolStartTime;
 
@@ -846,27 +868,31 @@
             epochEndTimes[2] = epochEndTimes[1] + 7 days; // 3rd week
             epochEndTimes[3] = epochEndTimes[2] + 7 days; // 4th week
 
-            epochPusdPerSecond[0] = epochTotalRewards[0].div(7 days);
-            epochPusdPerSecond[1] = epochTotalRewards[1].div(7 days);
-            epochPusdPerSecond[2] = epochTotalRewards[2].div(7 days);
-            epochPusdPerSecond[3] = epochTotalRewards[3].div(7 days);
+            epochPESPerSecond[0] = epochTotalRewards[0].div(7 days);
+            epochPESPerSecond[1] = epochTotalRewards[1].div(7 days);
+            epochPESPerSecond[2] = epochTotalRewards[2].div(7 days);
+            epochPESPerSecond[3] = epochTotalRewards[3].div(7 days);
 
-            epochPusdPerSecond[4] = 0;
+            epochPESPerSecond[4] = 0;
             operator = msg.sender;
         }
+
         modifier onlyOperator() {
             require(
                 operator == msg.sender,
-                "PusdRewardPool: caller is not the operator"
+                "PESRewardPool: caller is not the operator"
             );
             _;
         }
+
         function totalAllocPoint() external view override returns (uint256) {
             return totalAllocPoint_;
         }
+
         function poolLength() external view override returns (uint256) {
             return poolInfo.length;
         }
+
         function getPoolInfo(uint256 _pid)
             external
             view
@@ -877,22 +903,25 @@
             _lp = address(pool.token);
             _allocPoint = pool.allocPoint;
         }
+
         function getRewardPerSecond() external view override returns (uint256) {
             for (uint8 epochId = 0; epochId <= 3; ++epochId) {
                 if (block.timestamp <= epochEndTimes[epochId])
-                    return epochPusdPerSecond[epochId];
+                    return epochPESPerSecond[epochId];
             }
             return 0;
         }
+
         function checkPoolDuplicate(IERC20 _token) internal view {
             uint256 length = poolInfo.length;
             for (uint256 pid = 0; pid < length; ++pid) {
                 require(
                     poolInfo[pid].token != _token,
-                    "PusdRewardPool: existing pool?"
+                    "PESRewardPool: existing pool?"
                 );
             }
         }
+
         // Add a new token to the pool. Can only be called by the owner.
         function add(
             uint256 _allocPoint,
@@ -923,7 +952,7 @@
                     token: _token,
                     allocPoint: _allocPoint,
                     lastRewardTime: _lastRewardTime,
-                    accPusdPerShare: 0,
+                    accPESPerShare: 0,
                     isStarted: _isStarted
                 })
             );
@@ -931,7 +960,8 @@
                 totalAllocPoint_ = totalAllocPoint_.add(_allocPoint);
             }
         }
-        // Update the given pool's PUSD allocation point. Can only be called by the owner.
+
+        // Update the given pool's PES allocation point. Can only be called by the owner.
         function set(uint256 _pid, uint256 _allocPoint) public onlyOperator {
             massUpdatePools();
             PoolInfo storage pool = poolInfo[_pid];
@@ -942,6 +972,7 @@
             }
             pool.allocPoint = _allocPoint;
         }
+
         // Return accumulate rewards over the given _fromTime to _toTime.
         function getGeneratedReward(uint256 _fromTime, uint256 _toTime)
             public
@@ -952,16 +983,16 @@
                 if (_toTime >= epochEndTimes[epochId - 1]) {
                     if (_fromTime >= epochEndTimes[epochId - 1]) {
                         return
-                            _toTime.sub(_fromTime).mul(epochPusdPerSecond[epochId]);
+                            _toTime.sub(_fromTime).mul(epochPESPerSecond[epochId]);
                     }
                     uint256 _generatedReward = _toTime
                         .sub(epochEndTimes[epochId - 1])
-                        .mul(epochPusdPerSecond[epochId]);
+                        .mul(epochPESPerSecond[epochId]);
                     if (epochId == 1) {
                         return
                             _generatedReward.add(
                                 epochEndTimes[0].sub(_fromTime).mul(
-                                    epochPusdPerSecond[0]
+                                    epochPESPerSecond[0]
                                 )
                             );
                     }
@@ -970,27 +1001,28 @@
                             return
                                 _generatedReward.add(
                                     epochEndTimes[epochId].sub(_fromTime).mul(
-                                        epochPusdPerSecond[epochId]
+                                        epochPESPerSecond[epochId]
                                     )
                                 );
                         }
                         _generatedReward = _generatedReward.add(
                             epochEndTimes[epochId]
                                 .sub(epochEndTimes[epochId - 1])
-                                .mul(epochPusdPerSecond[epochId])
+                                .mul(epochPESPerSecond[epochId])
                         );
                     }
                     return
                         _generatedReward.add(
                             epochEndTimes[0].sub(_fromTime).mul(
-                                epochPusdPerSecond[0]
+                                epochPESPerSecond[0]
                             )
                         );
                 }
             }
-            return _toTime.sub(_fromTime).mul(epochPusdPerSecond[0]);
+            return _toTime.sub(_fromTime).mul(epochPESPerSecond[0]);
         }
-        // View function to see pending PUSDs on frontend.
+
+        // View function to see pending PESs on frontend.
         function pendingReward(uint256 _pid, address _user)
             public
             view
@@ -999,22 +1031,23 @@
         {
             PoolInfo storage pool = poolInfo[_pid];
             UserInfo storage user = userInfo[_pid][_user];
-            uint256 accPusdPerShare = pool.accPusdPerShare;
+            uint256 accPESPerShare = pool.accPESPerShare;
             uint256 tokenSupply = pool.token.balanceOf(address(this));
             if (block.timestamp > pool.lastRewardTime && tokenSupply != 0) {
                 uint256 _generatedReward = getGeneratedReward(
                     pool.lastRewardTime,
                     block.timestamp
                 );
-                uint256 _pusdReward = _generatedReward.mul(pool.allocPoint).div(
+                uint256 _pesReward = _generatedReward.mul(pool.allocPoint).div(
                     totalAllocPoint_
                 );
-                accPusdPerShare = accPusdPerShare.add(
-                    _pusdReward.mul(1e18).div(tokenSupply)
+                accPESPerShare = accPESPerShare.add(
+                    _pesReward.mul(1e18).div(tokenSupply)
                 );
             }
-            return user.amount.mul(accPusdPerShare).div(1e18).sub(user.rewardDebt);
+            return user.amount.mul(accPESPerShare).div(1e18).sub(user.rewardDebt);
         }
+
         function pendingAllRewards(address _user)
             external
             view
@@ -1026,6 +1059,7 @@
                 _total = _total.add(pendingReward(pid, _user));
             }
         }
+
         // Update reward variables for all pools. Be careful of gas spending!
         function massUpdatePools() public {
             uint256 length = poolInfo.length;
@@ -1033,6 +1067,7 @@
                 updatePool(pid);
             }
         }
+
         // Update reward variables of the given pool to be up-to-date.
         function updatePool(uint256 _pid) public {
             PoolInfo storage pool = poolInfo[_pid];
@@ -1053,15 +1088,16 @@
                     pool.lastRewardTime,
                     block.timestamp
                 );
-                uint256 _pusdReward = _generatedReward.mul(pool.allocPoint).div(
+                uint256 _pesReward = _generatedReward.mul(pool.allocPoint).div(
                     totalAllocPoint_
                 );
-                pool.accPusdPerShare = pool.accPusdPerShare.add(
-                    _pusdReward.mul(1e18).div(tokenSupply)
+                pool.accPESPerShare = pool.accPESPerShare.add(
+                    _pesReward.mul(1e18).div(tokenSupply)
                 );
             }
             pool.lastRewardTime = block.timestamp;
         }
+
         // Deposit LP tokens.
         function deposit(uint256 _pid, uint256 _amount)
             external
@@ -1074,11 +1110,11 @@
             if (user.amount > 0) {
                 uint256 _pending = user
                     .amount
-                    .mul(pool.accPusdPerShare)
+                    .mul(pool.accPESPerShare)
                     .div(1e18)
                     .sub(user.rewardDebt);
                 if (_pending > 0) {
-                    safePusdTransfer(msg.sender, _pending);
+                    safePESTransfer(msg.sender, _pending);
                     emit RewardPaid(msg.sender, _pending);
                 }
             }
@@ -1086,9 +1122,10 @@
                 pool.token.safeTransferFrom(msg.sender, address(this), _amount);
                 user.amount = user.amount.add(_amount);
             }
-            user.rewardDebt = user.amount.mul(pool.accPusdPerShare).div(1e18);
+            user.rewardDebt = user.amount.mul(pool.accPESPerShare).div(1e18);
             emit Deposit(msg.sender, _pid, _amount);
         }
+
         function withdraw(uint256 _pid, uint256 _amount)
             external
             override
@@ -1096,6 +1133,7 @@
         {
             _withdraw(msg.sender, _pid, _amount);
         }
+
         // Withdraw LP tokens.
         function _withdraw(
             address _account,
@@ -1106,23 +1144,25 @@
             UserInfo storage user = userInfo[_pid][_account];
             require(user.amount >= _amount, "withdraw: not good");
             updatePool(_pid);
-            uint256 _pending = user.amount.mul(pool.accPusdPerShare).div(1e18).sub(
+            uint256 _pending = user.amount.mul(pool.accPESPerShare).div(1e18).sub(
                 user.rewardDebt
             );
             if (_pending > 0) {
-                safePusdTransfer(_account, _pending);
+                safePESTransfer(_account, _pending);
                 emit RewardPaid(_account, _pending);
             }
             if (_amount > 0) {
                 user.amount = user.amount.sub(_amount);
                 pool.token.safeTransfer(_account, _amount);
             }
-            user.rewardDebt = user.amount.mul(pool.accPusdPerShare).div(1e18);
+            user.rewardDebt = user.amount.mul(pool.accPESPerShare).div(1e18);
             emit Withdraw(_account, _pid, _amount);
         }
+
         function withdrawAll(uint256 _pid) external override nonReentrant {
             _withdraw(msg.sender, _pid, userInfo[_pid][msg.sender].amount);
         }
+
         function harvestAllRewards() external override nonReentrant {
             uint256 length = poolInfo.length;
             for (uint256 pid = 0; pid < length; ++pid) {
@@ -1131,6 +1171,7 @@
                 }
             }
         }
+
         // Withdraw without caring about rewards. EMERGENCY ONLY.
         function emergencyWithdraw(uint256 _pid) external {
             PoolInfo storage pool = poolInfo[_pid];
@@ -1141,23 +1182,27 @@
             pool.token.safeTransfer(msg.sender, _amount);
             emit EmergencyWithdraw(msg.sender, _pid, _amount);
         }
-        // Safe pusd transfer function, just in case if rounding error causes pool to not have enough PUSDs.
-        function safePusdTransfer(address _to, uint256 _amount) internal {
-            uint256 _pusdBal = pusd.balanceOf(address(this));
-            if (_pusdBal > 0) {
-                if (_amount > _pusdBal) {
-                    pusd.safeTransfer(_to, _pusdBal);
+
+        // Safe pes transfer function, just in case if rounding error causes pool to not have enough PESs.
+        function safePESTransfer(address _to, uint256 _amount) internal {
+            uint256 _pesBal = pes.balanceOf(address(this));
+            if (_pesBal > 0) {
+                if (_amount > _pesBal) {
+                    pes.safeTransfer(_to, _pesBal);
                 } else {
-                    pusd.safeTransfer(_to, _amount);
+                    pes.safeTransfer(_to, _amount);
                 }
             }
         }
+
         function updateRewardRate(uint256) external override {
             revert("Not support");
         }
+
         function setOperator(address _operator) external onlyOperator {
             operator = _operator;
         }
+
         function governanceRecoverUnsupported(
             IERC20 _token,
             uint256 amount,
@@ -1165,8 +1210,8 @@
         ) external onlyOperator {
             if (block.timestamp < epochEndTimes[1] + 30 days) {
                 // do not allow to drain token if less than 30 days after farming
-                require(_token != pusd, "!pusd");
-                uint256 length = poolInfo.length;
+                require(_token != pes, "!pes");
+                uint256 length = poolInfo.length;   
                 for (uint256 pid = 0; pid < length; ++pid) {
                     PoolInfo storage pool = poolInfo[pid];
                     require(_token != pool.token, "!pool.token");
